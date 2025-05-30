@@ -69,18 +69,16 @@ function App() {
   }
 
   const renderProdutos = (classificacao) => {
-    let lista = Object.values(produtos).filter(p =>
-      (p.classificacao || '') === classificacao
-    )
-
+    let lista = Object.values(produtos).filter(p => (p.classificacao || '') === classificacao)
     lista = ordenar(lista)
 
     return (
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: '1200px' }}>
-          <thead style={{ backgroundColor: '#eee' }}>
+        <table style={{ width: '100%', minWidth: '1000px', fontSize: '0.9rem' }}>
+          <thead style={{ backgroundColor: '#f3f3f3' }}>
             <tr>
-              <th onClick={() => handleSort('titulo')} style={getHeaderStyle('titulo')}>Produto</th>
+              <th onClick={() => handleSort('produto')} style={getHeaderStyle('produto')}>Produto</th>
+              <th>Descrição</th>
               <th onClick={() => handleSort('codigo')} style={getHeaderStyle('codigo')}>ID</th>
               <th onClick={() => handleSort('valor_parcela')} style={getHeaderStyle('valor_parcela')}>Parcela</th>
               <th>Parcela Raw</th>
@@ -97,10 +95,12 @@ function App() {
           <tbody>
             {lista.map((p) => {
               const titulo = (p.produto || '[Sem Título]').toString().trim().substring(0, 80)
+              const descricao = (p.descricao || p.description || '-').toString().trim().substring(0, 100)
 
               return (
-                <tr key={p.codigo} style={{ borderBottom: '1px solid #ccc' }}>
+                <tr key={p.codigo} style={{ borderBottom: '1px solid #ddd' }}>
                   <td>{titulo}</td>
+                  <td>{descricao}</td>
                   <td><code>{p.codigo}</code></td>
                   <td>{p.valor_parcela || '-'}</td>
                   <td>{p.parcela_raw || '-'}</td>
@@ -110,9 +110,7 @@ function App() {
                   <td>{p.preco || '-'}</td>
                   <td>{p.data || '-'}</td>
                   <td>{p.ativo === false ? '❌ Não' : '✅ Sim'}</td>
-                  <td>
-                    <a href={p.link} target="_blank" rel="noopener noreferrer">🔗</a>
-                  </td>
+                  <td><a href={p.link} target="_blank" rel="noopener noreferrer">🔗</a></td>
                   <td>
                     <button onClick={() => enviarIgnorar(p.codigo)} style={{ marginRight: '5px' }}>IGN</button>
                     <button onClick={() => enviarClassificacaoManual(p.codigo, abaAtiva)}>Classificar</button>
@@ -133,10 +131,10 @@ function App() {
   })
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Monitor de Produtos</h1>
+    <div style={{ padding: '16px', maxWidth: '100%', boxSizing: 'border-box', fontFamily: 'Arial, sans-serif' }}>
+      <h1 style={{ fontSize: '1.5rem' }}>Monitor de Produtos</h1>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
         {Object.keys(classificacoes).map((key) => (
           <button
             key={key}
@@ -145,7 +143,8 @@ function App() {
               setSortConfig({ key: 'valor_parcela', direction: 'asc' })
             }}
             style={{
-              padding: '8px 12px',
+              padding: '10px 12px',
+              fontSize: '1rem',
               backgroundColor: abaAtiva === key ? '#aaa' : '#ddd',
               border: 'none',
               borderRadius: '4px',
@@ -159,7 +158,7 @@ function App() {
 
       {abaAtiva && (
         <div>
-          <h2>{abaAtiva}</h2>
+          <h2 style={{ fontSize: '1.2rem' }}>{abaAtiva}</h2>
           {renderProdutos(abaAtiva)}
         </div>
       )}
