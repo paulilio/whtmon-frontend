@@ -42,15 +42,52 @@ function App() {
     alert(`Produto ${codigo} classificado como ${classificacao}.`)
   }
 
+  const parseParcela = (val) => {
+    if (!val) return 99999
+    return parseFloat(val.toString().trim().replace(/\./g, '').replace(',', '.'))
+  }
+
+  const getResumoPorClasse = () => {
+    return Object.keys(classificacoes).map((classe) => {
+      const lista = Object.entries(produtos)
+        .filter(([codigo, p]) => p.classificacao === classe)
+        .map(([codigo, p]) => ({ ...p, codigo }))
+        .sort((a, b) => parseParcela(a.valor_parcela) - parseParcela(b.valor_parcela))
+
+      const top3 = lista.slice(0, 3)
+
+      const menoresExistentes = lista.map(p => parseParcela(p.valor_parcela))
+      const menorHistorico = Math.min(...menoresExistentes)
+      const menorAtual = parseParcela(top3[0]?.valor_parcela || '')
+      const comparativo = menorAtual <= menorHistorico ? '⬇️ Novo menor' : '—'
+
+      return (
+        <tr key={classe}>
+          <td>{classe}</td>
+          {[0, 1, 2].map(i => (
+            <td key={i} style={{ fontSize: '1.2rem' }}>
+              {top3[i]?.valor_parcela ? (
+                <a href={top3[i].link} target="_blank" rel="noopener noreferrer">
+                  {top3[i].valor_parcela} <span style={{ fontSize: '0.8rem' }}>({top3[i].preco || '-'})</span>
+                </a>
+              ) : '-'}
+            </td>
+          ))}
+          <td>{comparativo}</td>
+        </tr>
+      )
+    })
+  }
+
   const ordenar = (lista) => {
     const { key, direction } = sortConfig
     const sorted = [...lista].sort((a, b) => {
       const aVal = key === 'valor_parcela'
-        ? parseFloat((a[key] || '99999').replace(',', '.').replace('R$', '').trim())
+        ? parseParcela(a[key])
         : (a[key] || '').toString().toLowerCase()
 
       const bVal = key === 'valor_parcela'
-        ? parseFloat((b[key] || '99999').replace(',', '.').replace('R$', '').trim())
+        ? parseParcela(b[key])
         : (b[key] || '').toString().toLowerCase()
 
       if (aVal < bVal) return direction === 'asc' ? -1 : 1
@@ -69,7 +106,9 @@ function App() {
   }
 
   const renderProdutos = (classificacao) => {
-    let lista = Object.values(produtos).filter(p => (p.classificacao || '') === classificacao)
+    let lista = Object.entries(produtos)
+      .filter(([codigo, p]) => (p.classificacao || '') === classificacao)
+      .map(([codigo, p]) => ({ ...p, codigo }))
     lista = ordenar(lista)
 
     return (
@@ -78,16 +117,12 @@ function App() {
           <thead style={{ backgroundColor: '#f3f3f3' }}>
             <tr>
               <th onClick={() => handleSort('produto')} style={getHeaderStyle('produto')}>Produto</th>
-              <th>Descrição</th>
-              <th onClick={() => handleSort('codigo')} style={getHeaderStyle('codigo')}>ID</th>
+              <th>Ativo</th>
+              <th>Preço</th>
               <th onClick={() => handleSort('valor_parcela')} style={getHeaderStyle('valor_parcela')}>Parcela</th>
-              <th>Parcela Raw</th>
+              <th>18x</th>
               <th>Desconto</th>
               <th>Texto Cupom</th>
-              <th>18x</th>
-              <th>Preço</th>
-              <th>Data</th>
-              <th>Ativo</th>
               <th>Link</th>
               <th>Ações</th>
             </tr>
@@ -99,17 +134,13 @@ function App() {
 
               return (
                 <tr key={p.codigo} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td>{titulo}</td>
-                  <td>{descricao}</td>
-                  <td><code>{p.codigo}</code></td>
-                  <td>{p.valor_parcela || '-'}</td>
-                  <td>{p.parcela_raw || '-'}</td>
-                  <td>{p.cupom ? '✅ Sim' : '❌ Não'}</td>
-                  <td>{p.cupom || '-'}</td>
-                  <td>{p.parcela_raw?.includes('18x') ? '✅ Sim' : '❌ Não'}</td>
+                  <td>{titulo}<br /><small>{p.codigo}</small></td>
+                  <td>{p.ativo === false ? '❌' : '✅'}</td>
                   <td>{p.preco || '-'}</td>
-                  <td>{p.data || '-'}</td>
-                  <td>{p.ativo === false ? '❌ Não' : '✅ Sim'}</td>
+                  <td>{p.valor_parcela || '-'}</td>
+                  <td>{p.parcela_raw?.includes('18x') ? '✅' : '❌'}</td>
+                  <td>{p.cupom ? '✅' : '❌'}</td>
+                  <td>{p.cupom || '-'}</td>
                   <td><a href={p.link} target="_blank" rel="noopener noreferrer">🔗</a></td>
                   <td>
                     <button onClick={() => enviarIgnorar(p.codigo)} style={{ marginRight: '5px' }}>IGN</button>
@@ -132,6 +163,22 @@ function App() {
 
   return (
     <div style={{ padding: '16px', maxWidth: '100%', boxSizing: 'border-box', fontFamily: 'Arial, sans-serif' }}>
+      <h1 style={{ fontSize: '1.5rem' }}>Resumo</h1>
+      <table style={{ width: '100%', marginBottom: '24px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+        <thead style={{ background: '#eee' }}>
+          <tr>
+            <th>Classe</th>
+            <th>Parc1</th>
+            <th>Parc2</th>
+            <th>Parc3</th>
+            <th>Comparativo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {getResumoPorClasse()}
+        </tbody>
+      </table>
+
       <h1 style={{ fontSize: '1.5rem' }}>Monitor de Produtos</h1>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
