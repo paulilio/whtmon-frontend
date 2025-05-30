@@ -11,6 +11,7 @@ function App() {
   const [produtos, setProdutos] = useState({})
   const [abaAtiva, setAbaAtiva] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: 'valor_parcela', direction: 'asc' })
+  const [ultimaData, setUltimaData] = useState('')
 
   useEffect(() => {
     axios.get(CLASS_CONFIG_URL).then((res) => {
@@ -28,7 +29,15 @@ function App() {
     })
 
     axios.get(PRODUTOS_URL).then((res) => {
-      setProdutos(res.data || {})
+      const dados = res.data || {}
+      setProdutos(dados)
+
+      const datas = Object.values(dados).map((p) => new Date(p.ultima_coleta || 0)).filter(d => d.toString() !== 'Invalid Date')
+      const maisRecente = datas.length ? new Date(Math.max(...datas)) : null
+      if (maisRecente) {
+        const formatado = maisRecente.toLocaleString('pt-BR')
+        setUltimaData(formatado)
+      }
     })
   }, [])
 
@@ -163,7 +172,7 @@ function App() {
 
   return (
     <div style={{ padding: '16px', maxWidth: '100%', boxSizing: 'border-box', fontFamily: 'Arial, sans-serif' }}>
-      <h1 style={{ fontSize: '1.5rem' }}>Resumo</h1>
+      <h1 style={{ fontSize: '1.5rem' }}>Resumo <span style={{ fontSize: '1rem', color: '#555' }}>({ultimaData})</span></h1>
       <table style={{ width: '100%', marginBottom: '24px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
         <thead style={{ background: '#eee' }}>
           <tr>
