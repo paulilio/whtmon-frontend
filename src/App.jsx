@@ -30,9 +30,16 @@ function App() {
 
     axios.get(PRODUTOS_URL).then((res) => {
       const dados = res.data || {}
-      setProdutos(dados)
+      // Garante que cada produto carregue o campo "valor_parc_real" como string (ou vazio)
+      const atualizados = Object.fromEntries(
+        Object.entries(dados).map(([codigo, p]) => [
+          codigo,
+          { ...p, valor_parc_real: p.valor_parc_real || '' }
+        ])
+      )
+      setProdutos(atualizados)
 
-      const datas = Object.values(dados).map((p) => new Date(p.ultima_coleta || 0)).filter(d => d.toString() !== 'Invalid Date')
+      const datas = Object.values(atualizados).map((p) => new Date(p.ultima_coleta || 0)).filter(d => d.toString() !== 'Invalid Date')
       const maisRecente = datas.length ? new Date(Math.max(...datas)) : null
       if (maisRecente) {
         const formatado = maisRecente.toLocaleString('pt-BR')
@@ -65,24 +72,27 @@ function App() {
 
       const top3 = lista.slice(0, 3)
 
-      const menoresExistentes = lista.map(p => parseParcela(p.valor_parcela))
-      const menorHistorico = Math.min(...menoresExistentes)
-      const menorAtual = parseParcela(top3[0]?.valor_parcela || '')
-      const comparativo = menorAtual <= menorHistorico ? '⬇️ Novo menor' : '—'
-
       return (
         <tr key={classe}>
           <td>{classe}</td>
-          {[0, 1, 2].map(i => (
-            <td key={i} style={{ fontSize: '1.2rem' }}>
-              {top3[i]?.valor_parcela ? (
-                <a href={top3[i].link} target="_blank" rel="noopener noreferrer">
-                  {top3[i].valor_parcela} <span style={{ fontSize: '0.8rem' }}>({top3[i].preco || '-'})</span>
+          {[0, 1, 2].map(i => {
+            const produto = top3[i]
+            if (!produto) return <td key={i}>-</td>
+
+            const valor = produto.valor_parcela
+            const valorReal = produto.valor_parc_real || ''
+            const link = produto.link
+            const destaque = produto.cupom ? 'red' : 'black'
+
+            return (
+              <td key={i} style={{ fontSize: '1.2rem', color: destaque }}>
+                <a href={link} target="_blank" rel="noopener noreferrer">
+                  {valor} {valorReal && <span style={{ fontSize: '0.8rem' }}>({valorReal})</span>}
                 </a>
-              ) : '-'}
-            </td>
-          ))}
-          <td>{comparativo}</td>
+              </td>
+            )
+          })}
+          <td>—</td>
         </tr>
       )
     })
@@ -129,6 +139,7 @@ function App() {
               <th>Ativo</th>
               <th>Preço</th>
               <th onClick={() => handleSort('valor_parcela')} style={getHeaderStyle('valor_parcela')}>Parcela</th>
+              <th>Real</th>
               <th>18x</th>
               <th>Desconto</th>
               <th>Texto Cupom</th>
@@ -140,13 +151,15 @@ function App() {
             {lista.map((p) => {
               const titulo = (p.produto || '[Sem Título]').toString().trim().substring(0, 80)
               const descricao = (p.descricao || p.description || '-').toString().trim().substring(0, 100)
+              const destaque = p.cupom ? 'red' : 'black'
 
               return (
                 <tr key={p.codigo} style={{ borderBottom: '1px solid #ddd' }}>
                   <td>{titulo}<br /><small>{p.codigo}</small></td>
                   <td>{p.ativo === false ? '❌' : '✅'}</td>
                   <td>{p.preco || '-'}</td>
-                  <td>{p.valor_parcela || '-'}</td>
+                  <td style={{ color: destaque }}>{p.valor_parcela || '-'}</td>
+                  <td>{p.valor_parc_real || '-'}</td>
                   <td>{p.parcela_raw?.includes('18x') ? '✅' : '❌'}</td>
                   <td>{p.cupom ? '✅' : '❌'}</td>
                   <td>{p.cupom || '-'}</td>
