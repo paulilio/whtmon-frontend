@@ -3,7 +3,7 @@ import axios from 'axios'
 
 const CLASS_CONFIG_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_config.json'
 const PRODUTOS_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/produtos.json'
-const IGNORE_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/ignore'
+const IGNORE_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/ignore.json'
 const CLASS_PROD_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_prod.json'
 
 function App() {
@@ -65,8 +65,13 @@ function App() {
 
   const enviarIgnorar = async (codigo) => {
     try {
-      await axios.patch(`${IGNORE_URL}.json`, { [codigo]: true })
-      alert(`Produto ${codigo} marcado como ignorado.`)
+      await axios.patch(IGNORE_URL, { [codigo]: true })
+      setProdutos(prev => {
+        const atualizado = { ...prev }
+        delete atualizado[codigo]
+        return atualizado
+      })
+      alert(`Produto ${codigo} marcado como ignorado e removido da visualização.`)
     } catch (err) {
       alert('Erro ao enviar para lista de ignorados.')
       console.error(err)
