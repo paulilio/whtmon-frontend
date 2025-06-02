@@ -3,7 +3,7 @@ import axios from 'axios'
 
 const CLASS_CONFIG_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_config.json'
 const PRODUTOS_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/produtos.json'
-const IGNORE_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/ignore'
+const IGNORE_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/ignore.json'
 const CLASS_PROD_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_prod.json'
 
 function App() {
@@ -15,58 +15,70 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function carregarDados() {
-      try {
-        const [classRes, prodRes] = await Promise.all([
-          axios.get(CLASS_CONFIG_URL),
-          axios.get(PRODUTOS_URL)
-        ])
+  async function carregarDados() {
+    try {
+      const [classRes, prodRes, ignRes] = await Promise.all([
+        axios.get(CLASS_CONFIG_URL),
+        axios.get(PRODUTOS_URL),
+        axios.get(IGNORE_URL)
+      ])
 
-        const raw = classRes.data || {}
-        const listaExpandida = {}
+      const ignorados = ignRes.data || {}
 
-        for (const base in raw) {
-          if (raw[base].combo_keywords) listaExpandida[`${base} Combo`] = raw[base].combo_keywords
-          if (raw[base].sem_combo_keywords) listaExpandida[`${base} Sem Combo`] = raw[base].sem_combo_keywords
-        }
+      const raw = classRes.data || {}
+      const listaExpandida = {}
 
-        if (!listaExpandida['P1P']) {
-          listaExpandida['P1P'] = []
-        }
+      for (const base in raw) {
+        if (raw[base].combo_keywords) listaExpandida[`${base} Combo`] = raw[base].combo_keywords
+        if (raw[base].sem_combo_keywords) listaExpandida[`${base} Sem Combo`] = raw[base].sem_combo_keywords
+      }
 
-        setClassificacoes(listaExpandida)
-        const primeira = Object.keys(listaExpandida)[0]
-        setAbaAtiva(primeira)
+      if (!listaExpandida['P1P']) {
+        listaExpandida['P1P'] = []
+      }
 
-        const dados = prodRes.data || {}
-        const atualizados = Object.fromEntries(
-          Object.entries(dados).map(([codigo, p]) => [
+      setClassificacoes(listaExpandida)
+      const primeira = Object.keys(listaExpandida)[0]
+      setAbaAtiva(primeira)
+
+      const dados = prodRes.data || {}
+      const atualizados = Object.fromEntries(
+        Object.entries(dados)
+          .filter(([codigo]) => !ignorados[codigo]) // ⬅️ Aqui é o filtro de ignorados
+          .map(([codigo, p]) => [
             codigo,
             { ...p, valor_parc_real: p.valor_parc_real || '', classificacao: p.classificacao || '' }
           ])
-        )
-        setProdutos(atualizados)
+      )
+      setProdutos(atualizados)
 
-        const datas = Object.values(atualizados).map((p) => new Date(p.ultima_coleta || 0)).filter(d => d.toString() !== 'Invalid Date')
-        const maisRecente = datas.length ? new Date(Math.max(...datas)) : null
-        if (maisRecente) {
-          const formatado = maisRecente.toLocaleString('pt-BR')
-          setUltimaData(formatado)
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados:', error)
-      } finally {
-        setLoading(false)
+      const datas = Object.values(atualizados)
+        .map((p) => new Date(p.ultima_coleta || 0))
+        .filter((d) => d.toString() !== 'Invalid Date')
+      const maisRecente = datas.length ? new Date(Math.max(...datas)) : null
+      if (maisRecente) {
+        const formatado = maisRecente.toLocaleString('pt-BR')
+        setUltimaData(formatado)
       }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    carregarDados()
+  carregarDados()
   }, [])
 
   const enviarIgnorar = async (codigo) => {
     try {
-      await axios.patch(`${IGNORE_URL}.json`, { [codigo]: true })
-      alert(`Produto ${codigo} marcado como ignorado.`)
+      await axios.patch(IGNORE_URL, { [codigo]: true })
+      setProdutos(prev => {
+        const atualizado = { ...prev }
+        delete atualizado[codigo]
+        return atualizado
+      })
+      alert(`Produto ${codigo} marcado como ignorado e removido da visualização.`)
     } catch (err) {
       alert('Erro ao enviar para lista de ignorados.')
       console.error(err)
