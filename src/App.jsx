@@ -12,40 +12,55 @@ function App() {
   const [abaAtiva, setAbaAtiva] = useState('')
   const [sortConfig, setSortConfig] = useState({ key: 'valor_parcela', direction: 'asc' })
   const [ultimaData, setUltimaData] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    axios.get(CLASS_CONFIG_URL).then((res) => {
-      const raw = res.data || {}
-      const listaExpandida = {}
-
-      for (const base in raw) {
-        if (raw[base].combo_keywords) listaExpandida[`${base} Combo`] = raw[base].combo_keywords
-        if (raw[base].sem_combo_keywords) listaExpandida[`${base} Sem Combo`] = raw[base].sem_combo_keywords
-      }
-
-      setClassificacoes(listaExpandida)
-      const primeira = Object.keys(listaExpandida)[0]
-      setAbaAtiva(primeira)
-    })
-
-    axios.get(PRODUTOS_URL).then((res) => {
-      const dados = res.data || {}
-      // Garante que cada produto carregue o campo "valor_parc_real" como string (ou vazio)
-      const atualizados = Object.fromEntries(
-        Object.entries(dados).map(([codigo, p]) => [
-          codigo,
-          { ...p, valor_parc_real: p.valor_parc_real || '' }
+    async function carregarDados() {
+      try {
+        const [classRes, prodRes] = await Promise.all([
+          axios.get(CLASS_CONFIG_URL),
+          axios.get(PRODUTOS_URL)
         ])
-      )
-      setProdutos(atualizados)
 
-      const datas = Object.values(atualizados).map((p) => new Date(p.ultima_coleta || 0)).filter(d => d.toString() !== 'Invalid Date')
-      const maisRecente = datas.length ? new Date(Math.max(...datas)) : null
-      if (maisRecente) {
-        const formatado = maisRecente.toLocaleString('pt-BR')
-        setUltimaData(formatado)
+        const raw = classRes.data || {}
+        const listaExpandida = {}
+
+        for (const base in raw) {
+          if (raw[base].combo_keywords) listaExpandida[`${base} Combo`] = raw[base].combo_keywords
+          if (raw[base].sem_combo_keywords) listaExpandida[`${base} Sem Combo`] = raw[base].sem_combo_keywords
+        }
+
+        if (!listaExpandida['P1P']) {
+          listaExpandida['P1P'] = []
+        }
+
+        setClassificacoes(listaExpandida)
+        const primeira = Object.keys(listaExpandida)[0]
+        setAbaAtiva(primeira)
+
+        const dados = prodRes.data || {}
+        const atualizados = Object.fromEntries(
+          Object.entries(dados).map(([codigo, p]) => [
+            codigo,
+            { ...p, valor_parc_real: p.valor_parc_real || '' }
+          ])
+        )
+        setProdutos(atualizados)
+
+        const datas = Object.values(atualizados).map((p) => new Date(p.ultima_coleta || 0)).filter(d => d.toString() !== 'Invalid Date')
+        const maisRecente = datas.length ? new Date(Math.max(...datas)) : null
+        if (maisRecente) {
+          const formatado = maisRecente.toLocaleString('pt-BR')
+          setUltimaData(formatado)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error)
+      } finally {
+        setLoading(false)
       }
-    })
+    }
+
+    carregarDados()
   }, [])
 
   const enviarIgnorar = async (codigo) => {
@@ -73,26 +88,31 @@ function App() {
       const top3 = lista.slice(0, 3)
 
       return (
-        <tr key={classe}>
-          <td>{classe}</td>
+        <tr key={classe} className="border-b text-center">
+          <td className="px-2 py-1 font-medium text-left">{classe}</td>
           {[0, 1, 2].map(i => {
             const produto = top3[i]
-            if (!produto) return <td key={i}>-</td>
+            if (!produto) return <td key={i} className="px-2 py-1">-</td>
 
             const valor = produto.valor_parcela
-            const valorReal = produto.valor_parc_real || ''
             const link = produto.link
-            const destaque = produto.cupom ? 'red' : 'black'
+            const destaque = produto.cupom ? 'text-red-600' : 'text-black'
+
+            let descontoInfo = ''
+            if (produto.cupom) {
+              const match = produto.cupom.match(/(\d{1,3})%/)
+              if (match) descontoInfo = ` (${match[1]}%)`
+            }
 
             return (
-              <td key={i} style={{ fontSize: '1.2rem', color: destaque }}>
+              <td key={i} className={`px-2 py-1 ${destaque}`}>
                 <a href={link} target="_blank" rel="noopener noreferrer">
-                  {valor} {valorReal && <span style={{ fontSize: '0.8rem' }}>({valorReal})</span>}
+                  {valor}{descontoInfo}
                 </a>
               </td>
             )
           })}
-          <td>—</td>
+          <td className="px-2 py-1">—</td>
         </tr>
       )
     })
@@ -131,14 +151,14 @@ function App() {
     lista = ordenar(lista)
 
     return (
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', minWidth: '1000px', fontSize: '0.9rem' }}>
-          <thead style={{ backgroundColor: '#f3f3f3' }}>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1000px] text-sm text-center">
+          <thead className="bg-gray-100">
             <tr>
-              <th onClick={() => handleSort('produto')} style={getHeaderStyle('produto')}>Produto</th>
+              <th className="text-left">Produto</th>
               <th>Ativo</th>
               <th>Preço</th>
-              <th onClick={() => handleSort('valor_parcela')} style={getHeaderStyle('valor_parcela')}>Parcela</th>
+              <th>Parcela</th>
               <th>Real</th>
               <th>18x</th>
               <th>Desconto</th>
@@ -149,23 +169,20 @@ function App() {
           </thead>
           <tbody>
             {lista.map((p) => {
-              const titulo = (p.produto || '[Sem Título]').toString().trim().substring(0, 80)
-              const descricao = (p.descricao || p.description || '-').toString().trim().substring(0, 100)
-              const destaque = p.cupom ? 'red' : 'black'
-
+              const destaque = p.cupom ? 'text-red-600' : 'text-black'
               return (
-                <tr key={p.codigo} style={{ borderBottom: '1px solid #ddd' }}>
-                  <td>{titulo}<br /><small>{p.codigo}</small></td>
+                <tr key={p.codigo} className="border-b">
+                  <td className="text-left">{p.produto || '[Sem Título]'}<br /><small>{p.codigo}</small></td>
                   <td>{p.ativo === false ? '❌' : '✅'}</td>
                   <td>{p.preco || '-'}</td>
-                  <td style={{ color: destaque }}>{p.valor_parcela || '-'}</td>
+                  <td className={destaque}>{p.valor_parcela || '-'}</td>
                   <td>{p.valor_parc_real || '-'}</td>
                   <td>{p.parcela_raw?.includes('18x') ? '✅' : '❌'}</td>
                   <td>{p.cupom ? '✅' : '❌'}</td>
                   <td>{p.cupom || '-'}</td>
                   <td><a href={p.link} target="_blank" rel="noopener noreferrer">🔗</a></td>
                   <td>
-                    <button onClick={() => enviarIgnorar(p.codigo)} style={{ marginRight: '5px' }}>IGN</button>
+                    <button onClick={() => enviarIgnorar(p.codigo)} className="mr-2">IGN</button>
                     <button onClick={() => enviarClassificacaoManual(p.codigo, abaAtiva)}>Classificar</button>
                   </td>
                 </tr>
@@ -177,17 +194,15 @@ function App() {
     )
   }
 
-  const getHeaderStyle = (key) => ({
-    cursor: 'pointer',
-    background: sortConfig.key === key ? '#ccc' : undefined,
-    padding: '6px'
-  })
+  if (loading) return <div className="p-5 text-center animate-pulse">Carregando dados...</div>
 
   return (
-    <div style={{ padding: '16px', maxWidth: '100%', boxSizing: 'border-box', fontFamily: 'Arial, sans-serif' }}>
-      <h1 style={{ fontSize: '1.5rem' }}>Resumo <span style={{ fontSize: '1rem', color: '#555' }}>({ultimaData})</span></h1>
-      <table style={{ width: '100%', marginBottom: '24px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-        <thead style={{ background: '#eee' }}>
+    <div className="p-4 font-sans">
+      <h1 className="text-xl mb-2">
+        Resumo <span className="text-sm text-gray-600">({ultimaData})</span>
+      </h1>
+      <table className="w-full mb-6 border-collapse text-sm text-center">
+        <thead className="bg-gray-200">
           <tr>
             <th>Classe</th>
             <th>Parc1</th>
@@ -196,14 +211,12 @@ function App() {
             <th>Comparativo</th>
           </tr>
         </thead>
-        <tbody>
-          {getResumoPorClasse()}
-        </tbody>
+        <tbody>{getResumoPorClasse()}</tbody>
       </table>
 
-      <h1 style={{ fontSize: '1.5rem' }}>Monitor de Produtos</h1>
+      <h1 className="text-xl mb-4">Monitor de Produtos</h1>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+      <div className="flex flex-wrap gap-2 mb-4">
         {Object.keys(classificacoes).map((key) => (
           <button
             key={key}
@@ -211,14 +224,7 @@ function App() {
               setAbaAtiva(key)
               setSortConfig({ key: 'valor_parcela', direction: 'asc' })
             }}
-            style={{
-              padding: '10px 12px',
-              fontSize: '1rem',
-              backgroundColor: abaAtiva === key ? '#aaa' : '#ddd',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
+            className={`px-3 py-2 text-base rounded cursor-pointer ${abaAtiva === key ? 'bg-gray-400' : 'bg-gray-300'}`}
           >
             {key}
           </button>
@@ -227,7 +233,7 @@ function App() {
 
       {abaAtiva && (
         <div>
-          <h2 style={{ fontSize: '1.2rem' }}>{abaAtiva}</h2>
+          <h2 className="text-lg mb-2">{abaAtiva}</h2>
           {renderProdutos(abaAtiva)}
         </div>
       )}
