@@ -4,7 +4,7 @@ import axios from 'axios'
 const CLASS_CONFIG_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_config.json'
 const PRODUTOS_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/produtos.json'
 const IGNORE_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/ignore'
-const CLASS_PROD_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_prod'
+const CLASS_PROD_URL = 'https://wht-ml-scraper-default-rtdb.firebaseio.com/whtbase/class_prod.json'
 
 function App() {
   const [classificacoes, setClassificacoes] = useState({})
@@ -42,7 +42,7 @@ function App() {
         const atualizados = Object.fromEntries(
           Object.entries(dados).map(([codigo, p]) => [
             codigo,
-            { ...p, valor_parc_real: p.valor_parc_real || '' }
+            { ...p, valor_parc_real: p.valor_parc_real || '', classificacao: p.classificacao || '' }
           ])
         )
         setProdutos(atualizados)
@@ -64,13 +64,30 @@ function App() {
   }, [])
 
   const enviarIgnorar = async (codigo) => {
-    await axios.put(`${IGNORE_URL}/${codigo}.json`, true)
-    alert(`Produto ${codigo} marcado como ignorado.`)
+    try {
+      await axios.patch(`${IGNORE_URL}.json`, { [codigo]: true })
+      alert(`Produto ${codigo} marcado como ignorado.`)
+    } catch (err) {
+      alert('Erro ao enviar para lista de ignorados.')
+      console.error(err)
+    }
   }
 
   const enviarClassificacaoManual = async (codigo, classificacao) => {
-    await axios.put(`${CLASS_PROD_URL}/${codigo}.json`, classificacao)
-    alert(`Produto ${codigo} classificado como ${classificacao}.`)
+    try {
+      await axios.patch(CLASS_PROD_URL, { [codigo]: classificacao })
+      setProdutos(prev => ({
+        ...prev,
+        [codigo]: {
+          ...prev[codigo],
+          classificacao
+        }
+      }))
+      alert(`Produto ${codigo} reclassificado para: ${classificacao}`)
+    } catch (err) {
+      alert('Erro ao atualizar a classificação.')
+      console.error(err)
+    }
   }
 
   const parseParcela = (val) => {
@@ -183,7 +200,16 @@ function App() {
                   <td><a href={p.link} target="_blank" rel="noopener noreferrer">🔗</a></td>
                   <td>
                     <button onClick={() => enviarIgnorar(p.codigo)} className="mr-2">IGN</button>
-                    <button onClick={() => enviarClassificacaoManual(p.codigo, abaAtiva)}>Classificar</button>
+                    <select
+                      value={p.classificacao}
+                      onChange={(e) => enviarClassificacaoManual(p.codigo, e.target.value)}
+                      className="text-sm px-1 py-0.5 border rounded"
+                    >
+                      <option value="">[Selecionar]</option>
+                      {Object.keys(classificacoes).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
                   </td>
                 </tr>
               )
